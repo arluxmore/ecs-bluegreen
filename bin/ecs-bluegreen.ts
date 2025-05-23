@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
-import { EcsBluegreenStack } from '../lib/ecs-bluegreen-stack';
+import { EcsBlueGreenStack } from '../lib/ecs-bluegreen-stack';
 
 const app = new cdk.App();
-new EcsBluegreenStack(app, 'EcsBluegreenStack', {
+new EcsBlueGreenStack(app, 'EcsBlueGreenStack', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
