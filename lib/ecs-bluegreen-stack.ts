@@ -210,9 +210,6 @@ export class EcsBlueGreenStack extends Stack {
         taskDefinition: greenTaskDef,
         desiredCount: 1,
         assignPublicIp: true,
-        deploymentController: {
-          type: ecs.DeploymentControllerType.CODE_DEPLOY,
-        },
       });
 
       
