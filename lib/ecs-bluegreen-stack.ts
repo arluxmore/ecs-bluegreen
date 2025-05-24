@@ -16,16 +16,8 @@ const gitHubOwner = 'arluxmore';
 export class EcsBlueGreenStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
-
-    const region = Stack.of(this).region;
-    const account = Stack.of(this).account;
     
     const allowedIp = this.node.tryGetContext('allowedIp') ?? '0.0.0.0/0';
-    const imageTag = this.node.tryGetContext('imageTag');
-
-    if (imageTag === undefined) {
-      throw new Error('image tag required - use nginx for first deploy');
-    }
 
     const vpc = new ec2.Vpc(this, 'Vpc', { maxAzs: 2 });
 
@@ -50,17 +42,10 @@ export class EcsBlueGreenStack extends Stack {
     const blueTaskDef = new ecs.FargateTaskDefinition(this, 'BlueTaskDef', taskDef);
     const greenTaskDef = new ecs.FargateTaskDefinition(this, 'GreenTaskDef', taskDef);    
 
-    if (imageTag === 'nginx') {
-      blueTaskDef.addContainer('BlueApp', {
-        portMappings: [{ containerPort: 80 }],
-        image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
-      });
-    } else {
-      blueTaskDef.addContainer('BlueApp', {
-        portMappings: [{ containerPort: 80 }],
-        image: ecs.ContainerImage.fromRegistry(`${account}.dkr.ecr.${region}.amazonaws.com/${repositoryName}:${imageTag}`),
-      });
-    }
+    blueTaskDef.addContainer('BlueApp', {
+      portMappings: [{ containerPort: 80 }],
+      image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
+    });
 
     greenTaskDef.addContainer('GreenApp', {
       containerName: 'App',
@@ -159,7 +144,7 @@ export class EcsBlueGreenStack extends Stack {
 
 
     // CodeBuild Project
-    const project = new codebuild.PipelineProject(this, 'GreenBuildProject', {
+    const greenBuildProject = new codebuild.PipelineProject(this, 'GreenBuildProject', {
       environment: {
         buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
         privileged: true, // required for Docker
@@ -226,17 +211,63 @@ export class EcsBlueGreenStack extends Stack {
       }),
     });
 
+    const blueBuildProject = new codebuild.PipelineProject(this, 'BlueBuildProject', {
+      environment: {
+        buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
+        privileged: true,
+      },
+      buildSpec: codebuild.BuildSpec.fromObject({
+        version: '0.2',
+        phases: {
+          pre_build: {
+            commands: [
+              'IMAGE_TAG=$(aws ssm get-parameter --name /promote/imageTag --query Parameter.Value --output text)',
+              'echo Promoting image $IMAGE_TAG',
+            ],
+          },
+          build: {
+            commands: [
+              'docker pull $REPOSITORY_URI:$IMAGE_TAG',
+              // skip push, reuse image
+            ],
+          },
+          post_build: {
+            commands: [
+              'echo Generating taskdef.json...',
+              // same as your current taskdef + appspec gen
+            ],
+          },
+        },
+        artifacts: {
+          files: ['taskdef.json', 'appspec.yaml'],
+        },
+      }),
+    });
 
-    repo.grantPullPush(project.role!);
+    repo.grantPullPush(greenBuildProject.role!);
+    repo.grantPullPush(blueBuildProject.role!);
 
-    const sourceOutput = new codepipeline.Artifact();
-    const buildOutput = new codepipeline.Artifact();
+    blueBuildProject.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['ssm:GetParameter'],
+      resources: ['arn:aws:ssm:your-region:your-account:parameter/promote/imageTag'],
+    }));
 
-    const pipeline = new codepipeline.Pipeline(this, 'GreenPipeline', {
+
+    const greenPipeline = new codepipeline.Pipeline(this, 'GreenDeployPipeline', {
       pipelineName: 'GreenDeployPipeline',
     });
 
-    pipeline.addStage({
+    const bluePipeline = new codepipeline.Pipeline(this, 'BlueDeployPipeline', {
+      pipelineName: 'BlueDeployPipeline',
+    });
+
+    
+
+    const greenSourceOutput = new codepipeline.Artifact();
+    const greenBuildOutput = new codepipeline.Artifact();
+
+
+    greenPipeline.addStage({
       stageName: 'Source',
       actions: [
         new codepipeline_actions.GitHubSourceAction({
@@ -244,43 +275,73 @@ export class EcsBlueGreenStack extends Stack {
           oauthToken: SecretValue.secretsManager('github-token'),
           owner: gitHubOwner,
           repo: repositoryName,
-          output: sourceOutput,
+          output: greenSourceOutput,
           branch: 'main',
         }),
       ],
     });
 
-    pipeline.addStage({
+    greenPipeline.addStage({
       stageName: 'BuildAndPush',
       actions: [
         new codepipeline_actions.CodeBuildAction({
           actionName: 'Build_and_Push_Image',
-          project,
-          input: sourceOutput,
-          outputs: [buildOutput],
+          project: greenBuildProject,
+          input: greenSourceOutput,
+          outputs: [greenBuildOutput],
         }),
       ],
     });
 
-    pipeline.addStage({
+    greenPipeline.addStage({
       stageName: 'DeployGreen',
       actions: [
         new codepipeline_actions.EcsDeployAction({
           actionName: 'DeployToGreen',
           service: greenService,
-          input: buildOutput,
+          input: greenBuildOutput,
         }),
       ],
     });
 
-    pipeline.addStage({
+    const blueSourceOutput = new codepipeline.Artifact();
+    const blueBuildOutput = new codepipeline.Artifact();
+
+    bluePipeline.addStage({
+      stageName: 'Source',
+      actions: [
+        new codepipeline_actions.GitHubSourceAction({
+          actionName: 'GitHub_Source',
+          oauthToken: SecretValue.secretsManager('github-token'),
+          owner: gitHubOwner,
+          repo: repositoryName,
+          branch: 'main',
+          output: blueSourceOutput,
+        }),
+      ],
+    });
+
+    bluePipeline.addStage({
+      stageName: 'BuildBlue',
+      actions: [
+        new codepipeline_actions.CodeBuildAction({
+          actionName: 'BuildArtifactsForBlue',
+          project: blueBuildProject,
+          input: blueSourceOutput,
+          outputs: [blueBuildOutput],
+        }),
+      ],
+    });
+
+
+    bluePipeline.addStage({
       stageName: 'DeployBlue',
       actions: [
         new codepipeline_actions.CodeDeployEcsDeployAction({
           actionName: 'DeployToBlue',
           deploymentGroup: blueDeploymentGroup,
-          taskDefinitionTemplateInput: buildOutput,
-          appSpecTemplateInput: buildOutput,
+          taskDefinitionTemplateInput: blueBuildOutput,
+          appSpecTemplateInput: blueBuildOutput,
         }),
       ],
     });
