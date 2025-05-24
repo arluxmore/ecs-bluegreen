@@ -62,14 +62,8 @@ export class EcsBlueGreenStack extends Stack {
 
     greenTaskDef.addContainer('GreenApp', {
       containerName: 'app',
-      image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
-    });
-
-    // Proxy container
-    greenTaskDef.addContainer('Proxy', {
-      image: ecs.ContainerImage.fromAsset('./proxy'),
       portMappings: [{ containerPort: 80 }],
-      essential: true,
+      image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
     });
 
     // Fargate Service (Blue)
