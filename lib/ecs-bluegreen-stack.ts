@@ -21,6 +21,7 @@ export class EcsBlueGreenStack extends Stack {
     
     const allowedIp = this.node.tryGetContext('allowedIp') ?? '0.0.0.0/0';
     const imageTag = this.node.tryGetContext('imageTag');
+    const excludeGreen = !!this.node.tryGetContext('excludeGreen');
 
     if (imageTag === undefined) {
       throw new Error('image tag required - use nginx for first deploy');
@@ -79,16 +80,6 @@ export class EcsBlueGreenStack extends Stack {
       assignPublicIp: true,
     });
 
-    const greenService = new ecs.FargateService(this, 'GreenService', {
-      cluster,
-      taskDefinition: greenTaskDef,
-      desiredCount: 1,
-      assignPublicIp: true,
-      deploymentController: {
-        type: ecs.DeploymentControllerType.CODE_DEPLOY,
-      },
-    });
-
     const lb = new elbv2.ApplicationLoadBalancer(this, 'LB', {
       vpc,
       internetFacing: true,
@@ -125,7 +116,9 @@ export class EcsBlueGreenStack extends Stack {
     });
 
     blueService.attachToApplicationTargetGroup(blueTG);
-    greenService.attachToApplicationTargetGroup(greenTG);
+
+    
+
 
     // CodeBuild Project
     const project = new codebuild.PipelineProject(this, 'GreenBuildProject', {
@@ -203,15 +196,32 @@ export class EcsBlueGreenStack extends Stack {
       ],
     });
 
-    pipeline.addStage({
-      stageName: 'DeployGreen',
-      actions: [
-        new codepipeline_actions.EcsDeployAction({
-          actionName: 'DeployToGreen',
-          service: greenService,
-          input: buildOutput,
-        }),
-      ],
-    });
+        // if green service changes after initial deployment,
+    // it must be deleted with excludeGreen then recreated
+    if (!excludeGreen) {
+      const greenService = new ecs.FargateService(this, 'GreenService', {
+        cluster,
+        taskDefinition: greenTaskDef,
+        desiredCount: 1,
+        assignPublicIp: true,
+        deploymentController: {
+          type: ecs.DeploymentControllerType.CODE_DEPLOY,
+        },
+      });
+
+      
+      greenService.attachToApplicationTargetGroup(greenTG);
+
+      pipeline.addStage({
+        stageName: 'DeployGreen',
+        actions: [
+          new codepipeline_actions.EcsDeployAction({
+            actionName: 'DeployToGreen',
+            service: greenService,
+            input: buildOutput,
+          }),
+        ],
+      });
+    }
   }
 }
