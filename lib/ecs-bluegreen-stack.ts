@@ -61,7 +61,7 @@ export class EcsBlueGreenStack extends Stack {
     }
 
     greenTaskDef.addContainer('GreenApp', {
-      containerName: 'app',
+      containerName: 'App',
       portMappings: [{ containerPort: 80 }],
       image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
     });
@@ -74,25 +74,23 @@ export class EcsBlueGreenStack extends Stack {
       assignPublicIp: true,
     });
 
-    const blueLb = new elbv2.ApplicationLoadBalancer(this, 'BlueLB', {
+    const lb = {
       vpc,
       internetFacing: true,
-    });
+    };
 
-    const blueListener = blueLb.addListener('BlueHttpListener', {
+    const blueLb = new elbv2.ApplicationLoadBalancer(this, 'BlueLB', lb);
+
+    const greenLb = new elbv2.ApplicationLoadBalancer(this, 'GreenLB', lb);
+
+    const listener = {
       port: 80,
       open: true,
-    });
+    };
 
-    const greenLb = new elbv2.ApplicationLoadBalancer(this, 'GreenLB', {
-      vpc,
-      internetFacing: true,
-    });
+    const blueListener = blueLb.addListener('BlueHttpListener', listener);
 
-    const greenListener = greenLb.addListener('GreenHttpListener', {
-      port: 80,
-      open: true,
-    });
+    const greenListener = greenLb.addListener('GreenHttpListener', listener);
 
     // Target Groups
     const targetGroup = {
