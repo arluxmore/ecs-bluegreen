@@ -32,20 +32,49 @@ cdk deploy \
 * `imageTag`: **Required**. Specifies the Docker image tag to use. Defaults to `nginx` if no suitable tag is provided.
 * `allowedIp`: **Required**. Restricts access to the green environment.
 
-### GitHub Integration
+---
 
-Each push to `main`:
+### GitHub Integration & Deployment Workflow
 
-1. Builds a new Docker image
-2. Pushes it to ECR
-3. Deploys the green (staging) environment
-4. Waits for manual promotion (outside the stack) to update blue
+1. **Initial Deployment**
+   You deploy the stack using:
 
-## Notes
+   ```bash
+   cdk deploy \
+     --context imageTag=nginx \
+     --context allowedIp=YOUR.IP.ADDRESS.HERE
+   ```
 
-* The green environment is rebuilt automatically and serves as a live preview for the latest code.
-* The blue environment remains unchanged unless manually redeployed with a new `imageTag`.
-* Both environments share identical compute and container configuration to ensure parity.
+   Both `blue` and `green` environments will be initialized with the default `nginx` container, showing the standard Nginx welcome screen.
+
+2. **Staging Updates Automatically**
+   Every push to the `main` branch of your GitHub repo triggers a CI/CD pipeline that:
+
+   * Builds a new Docker image
+   * Pushes it to ECR
+   * Deploys it to the **green** (staging) environment
+
+   Only the IP address specified by `allowedIp` will be able to access this environment.
+
+3. **Promoting to Production (Blue)**
+   When you're satisfied with the green deployment, you manually promote it by running:
+
+   ```bash
+   cdk deploy \
+     --context imageTag=<tag-used-by-green> \
+     --context allowedIp=YOUR.IP.ADDRESS.HERE
+   ```
+
+   This updates the **blue** (production) environment with the same image used in green, making it publicly live.
+
+---
+
+### Notes
+
+* Green is automatically rebuilt on every GitHub push. It reflects the latest commit on the `main` branch.
+* Blue remains stable until manually updated with an `imageTag` via CDK.
+* You manage the blue/green lifecycle explicitly through separate deployments and load balancer routing rules.
+* Both environments use identical container, CPU, memory, and port settings for parity.
 
 ## Cleanup
 
