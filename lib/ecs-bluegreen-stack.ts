@@ -21,7 +21,7 @@ export class EcsBlueGreenStack extends Stack {
     
     const allowedIp = this.node.tryGetContext('allowedIp') ?? '0.0.0.0/0';
     const imageTag = this.node.tryGetContext('imageTag');
-    const excludeGreen = !!this.node.tryGetContext('excludeGreen');
+    const excludeGreen = this.node.tryGetContext('excludeGreen') === true;
 
     if (imageTag === undefined) {
       throw new Error('image tag required - use nginx for first deploy');
@@ -111,6 +111,7 @@ export class EcsBlueGreenStack extends Stack {
     });
 
     greenListener.addTargetGroups('GreenRule', {
+      priority: 10,
       conditions: [
         elbv2.ListenerCondition.sourceIps([allowedIp]),
       ],
