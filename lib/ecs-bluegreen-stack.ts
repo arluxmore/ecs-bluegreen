@@ -62,7 +62,7 @@ export class EcsBlueGreenStack extends Stack {
 
     greenTaskDef.addContainer('GreenApp', {
       image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
-      portMappings: [{ containerPort: 8080 }],
+      portMappings: [{ containerPort: 80 }],
     });
 
     // Proxy container
@@ -196,7 +196,7 @@ export class EcsBlueGreenStack extends Stack {
       ],
     });
 
-        // if green service changes after initial deployment,
+    // if green service changes after initial deployment,
     // it must be deleted with excludeGreen then recreated
     if (!excludeGreen) {
       const greenService = new ecs.FargateService(this, 'GreenService', {
