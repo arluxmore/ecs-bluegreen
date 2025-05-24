@@ -21,7 +21,7 @@ export class EcsBlueGreenStack extends Stack {
     
     const allowedIp = this.node.tryGetContext('allowedIp') ?? '0.0.0.0/0';
     const imageTag = this.node.tryGetContext('imageTag');
-    const excludeGreen = this.node.tryGetContext('excludeGreen') === true;
+    const excludeGreen = this.node.tryGetContext('excludeGreen') === 'true';
 
     if (imageTag === undefined) {
       throw new Error('image tag required - use nginx for first deploy');
@@ -81,12 +81,16 @@ export class EcsBlueGreenStack extends Stack {
 
     const blueLb = new elbv2.ApplicationLoadBalancer(this, 'BlueLB', lb);
 
+    const greenLb = new elbv2.ApplicationLoadBalancer(this, 'GreenLB', lb);
+
     const listener = {
       port: 80,
       open: true,
     };
 
     const blueListener = blueLb.addListener('BlueHttpListener', listener);
+
+    const greenListener = greenLb.addListener('GreenHttpListener', listener);
 
     // Target Groups
     const targetGroup = {
@@ -102,6 +106,22 @@ export class EcsBlueGreenStack extends Stack {
 
     blueListener.addTargetGroups('DefaultRule', {
       targetGroups: [blueTG],
+    });
+
+    greenListener.addTargetGroups('GreenRule', {
+      priority: 10,
+      conditions: [
+        elbv2.ListenerCondition.sourceIps([allowedIp]),
+      ],
+      targetGroups: [greenTG],
+    });
+
+    // Default action: deny all others
+    greenListener.addAction('DefaultDeny', {
+      action: elbv2.ListenerAction.fixedResponse(403, {
+        contentType: 'text/plain',
+        messageBody: 'Access denied',
+      }),
     });
 
     blueService.attachToApplicationTargetGroup(blueTG);
@@ -185,29 +205,6 @@ export class EcsBlueGreenStack extends Stack {
     // if green service changes after initial deployment, it must be deleted with excludeGreen then recreated
     // Invalid request provided: Unable to update load balancers on services with a CODE_DEPLOY deployment controller. Use AWS CodeDeploy to trigger a new deployment.
     if (!excludeGreen) {
-
-      const greenLb = new elbv2.ApplicationLoadBalancer(this, 'GreenLB', lb);
-      
-
-      const greenListener = greenLb.addListener('GreenHttpListener', listener);
-
-      greenListener.addTargetGroups('GreenRule', {
-        priority: 10,
-        conditions: [
-          elbv2.ListenerCondition.sourceIps([allowedIp]),
-        ],
-        targetGroups: [greenTG],
-      });
-
-      // Default action: deny all others
-      greenListener.addAction('DefaultDeny', {
-        action: elbv2.ListenerAction.fixedResponse(403, {
-          contentType: 'text/plain',
-          messageBody: 'Access denied',
-        }),
-      });
-
-
       const greenService = new ecs.FargateService(this, 'GreenService', {
         cluster,
         taskDefinition: greenTaskDef,
