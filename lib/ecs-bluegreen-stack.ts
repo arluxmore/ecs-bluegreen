@@ -63,7 +63,6 @@ export class EcsBlueGreenStack extends Stack {
     greenTaskDef.addContainer('GreenApp', {
       containerName: 'app',
       image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
-      portMappings: [{ containerPort: 80 }],
     });
 
     // Proxy container
