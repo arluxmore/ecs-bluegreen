@@ -135,7 +135,7 @@ export class EcsBlueGreenStack extends Stack {
       },
       environmentVariables: {
         REPOSITORY_URI: { value: repo.repositoryUri },
-        IMAGE_TAG: { value: 'latest' },
+        IMAGE_TAG: { value: 'latest' }, // default fallback
       },
       buildSpec: codebuild.BuildSpec.fromObject({
         version: '0.2',
@@ -144,6 +144,7 @@ export class EcsBlueGreenStack extends Stack {
             commands: [
               'echo Logging in to Amazon ECR...',
               'aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI',
+              'export IMAGE_TAG=$CODEBUILD_RESOLVED_SOURCE_VERSION',
             ],
           },
           build: {
@@ -153,9 +154,19 @@ export class EcsBlueGreenStack extends Stack {
               'docker push $REPOSITORY_URI:$IMAGE_TAG',
             ],
           },
+          post_build: {
+            commands: [
+              'echo Writing imagedefinitions.json...',
+              'printf \'[{"name":"App","imageUri":"%s"}]\' "$REPOSITORY_URI:$IMAGE_TAG" > imagedefinitions.json',
+            ],
+          },
+        },
+        artifacts: {
+          files: ['imagedefinitions.json'],
         },
       }),
     });
+
 
     repo.grantPullPush(project.role!);
 
