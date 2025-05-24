@@ -30,7 +30,9 @@ export class EcsBlueGreenStack extends Stack {
 
     const cluster = new ecs.Cluster(this, 'Cluster', { vpc });
     
-    const repo = new ecr.Repository(this, 'AppRepo');
+    const repo = new ecr.Repository(this, 'AppRepo', {
+      repositoryName
+    });
 
     const taskDef = {
       cpu: 256,
