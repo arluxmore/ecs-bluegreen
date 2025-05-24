@@ -69,18 +69,12 @@ cdk deploy \
 
 ---
 
-Here’s an updated version of the **"Notes"** section in your `README.md` with a clear explanation of the flickering issue and a mention of the potential upgrade path:
-
----
-
 ### Notes
 
 * Green is automatically rebuilt on every GitHub push. It reflects the latest commit on the `main` branch.
 * Blue remains stable until manually updated with an `imageTag` via CDK.
 * You manage the blue/green lifecycle explicitly through separate deployments and load balancer routing rules.
 * Both environments use identical container, CPU, memory, and port settings for parity.
-* ⚠️ **Note on deployment flickering**: When deploying to the blue (production) environment using the default ECS rolling update strategy, users may briefly see a mix of old and new content ("flickering") during the rollout. This occurs because ECS replaces tasks gradually and routes traffic to both during the transition.
-* ✅ **Future enhancement**: To eliminate flickering and achieve true zero-downtime deployments, consider upgrading the blue environment to use **AWS CodeDeploy with blue/green traffic shifting**. This allows traffic to shift only after new tasks are healthy and supports automated rollback.
 
 ## Cleanup
 

@@ -8,6 +8,7 @@ import * as codebuild from 'aws-cdk-lib/aws-codebuild';
 import * as codepipeline from 'aws-cdk-lib/aws-codepipeline';
 import * as codepipeline_actions from 'aws-cdk-lib/aws-codepipeline-actions';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
 
 const repositoryName = 'sample-container-app';
 const gitHubOwner = 'arluxmore';
@@ -67,15 +68,24 @@ export class EcsBlueGreenStack extends Stack {
       image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
     });
 
-    const service = {
+
+    // Fargate Service
+    const blueService = new ecs.FargateService(this, 'BlueService', {
       cluster,
       desiredCount: 1,
       assignPublicIp: true,
-    };
-
-    // Fargate Service
-    const blueService = new ecs.FargateService(this, 'BlueService', { ...service, taskDefinition: blueTaskDef });
-    const greenService = new ecs.FargateService(this, 'GreenService', { ...service, taskDefinition: greenTaskDef });
+      taskDefinition: blueTaskDef,
+      deploymentController: {
+        type: ecs.DeploymentControllerType.CODE_DEPLOY,
+      },
+    });
+    
+    const greenService = new ecs.FargateService(this, 'GreenService', {
+      cluster,
+      desiredCount: 1,
+      assignPublicIp: true,
+      taskDefinition: greenTaskDef
+    });
 
     const lb = {
       vpc,
@@ -106,6 +116,7 @@ export class EcsBlueGreenStack extends Stack {
 
     const blueTG = new elbv2.ApplicationTargetGroup(this, 'BlueTG', targetGroup);
     const greenTG = new elbv2.ApplicationTargetGroup(this, 'GreenTG', targetGroup);
+    const greenTargetGroupForBlue = new elbv2.ApplicationTargetGroup(this, 'BlueGreenTG', targetGroup);
 
     blueListener.addTargetGroups('DefaultRule', {
       targetGroups: [blueTG],
@@ -130,6 +141,23 @@ export class EcsBlueGreenStack extends Stack {
     blueService.attachToApplicationTargetGroup(blueTG);
     greenService.attachToApplicationTargetGroup(greenTG);
 
+    const blueApp = new codedeploy.EcsApplication(this, 'BlueApp');
+
+    const blueDeploymentGroup = new codedeploy.EcsDeploymentGroup(this, 'BlueDG', {
+      application: blueApp,
+      service: blueService,
+      blueGreenDeploymentConfig: {
+        blueTargetGroup: blueTG,
+        greenTargetGroup: greenTargetGroupForBlue,
+        listener: blueListener, // ALB listener that receives production traffic
+      },
+      deploymentConfig: codedeploy.EcsDeploymentConfig.ALL_AT_ONCE, // or LINEAR, etc.
+      autoRollback: {
+        failedDeployment: true,
+      },
+    });
+
+
     // CodeBuild Project
     const project = new codebuild.PipelineProject(this, 'GreenBuildProject', {
       environment: {
@@ -138,7 +166,6 @@ export class EcsBlueGreenStack extends Stack {
       },
       environmentVariables: {
         REPOSITORY_URI: { value: repo.repositoryUri },
-        IMAGE_TAG: { value: 'latest' }, // default fallback
       },
       buildSpec: codebuild.BuildSpec.fromObject({
         version: '0.2',
@@ -146,26 +173,55 @@ export class EcsBlueGreenStack extends Stack {
           pre_build: {
             commands: [
               'echo Logging in to Amazon ECR...',
-              'aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI',
-              'export IMAGE_TAG=$CODEBUILD_RESOLVED_SOURCE_VERSION',
+              'aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI',
+              'export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:0:7}',
+              'echo "Image tag used: $IMAGE_TAG"',
             ],
           },
           build: {
             commands: [
-              'echo Building the Docker image...',
+              'echo Building Docker image...',
               'docker build -t $REPOSITORY_URI:$IMAGE_TAG .',
               'docker push $REPOSITORY_URI:$IMAGE_TAG',
             ],
           },
           post_build: {
             commands: [
-              'echo Writing imagedefinitions.json...',
-              'printf \'[{"name":"App","imageUri":"%s"}]\' "$REPOSITORY_URI:$IMAGE_TAG" > imagedefinitions.json',
+              'echo Writing taskdef.json...',
+              'cat > taskdef.json <<EOF',
+              '{',
+              '  "family": "your-task-family",',
+              '  "containerDefinitions": [',
+              '    {',
+              '      "name": "web",',
+              '      "image": "' + '$REPOSITORY_URI:$IMAGE_TAG' + '",',
+              '      "memory": 512,',
+              '      "cpu": 256,',
+              '      "essential": true,',
+              '      "portMappings": [',
+              '        { "containerPort": 80, "protocol": "tcp" }',
+              '      ]',
+              '    }',
+              '  ]',
+              '}',
+              'EOF',
+              'echo Writing appspec.yaml...',
+              'cat > appspec.yaml <<EOF',
+              'version: 1',
+              'Resources:',
+              '  - TargetService:',
+              '      Type: AWS::ECS::Service',
+              '      Properties:',
+              '        TaskDefinition: "taskdef.json"',
+              '        LoadBalancerInfo:',
+              '          ContainerName: "web"',
+              '          ContainerPort: 80',
+              'EOF',
             ],
           },
         },
         artifacts: {
-          files: ['imagedefinitions.json'],
+          files: ['taskdef.json', 'appspec.yaml'],
         },
       }),
     });
@@ -213,6 +269,18 @@ export class EcsBlueGreenStack extends Stack {
           actionName: 'DeployToGreen',
           service: greenService,
           input: buildOutput,
+        }),
+      ],
+    });
+
+    pipeline.addStage({
+      stageName: 'DeployBlue',
+      actions: [
+        new codepipeline_actions.CodeDeployEcsDeployAction({
+          actionName: 'DeployToBlue',
+          deploymentGroup: blueDeploymentGroup,
+          taskDefinitionTemplateInput: buildOutput,
+          appSpecTemplateInput: buildOutput,
         }),
       ],
     });
