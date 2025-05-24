@@ -74,12 +74,22 @@ export class EcsBlueGreenStack extends Stack {
       assignPublicIp: true,
     });
 
-    const lb = new elbv2.ApplicationLoadBalancer(this, 'LB', {
+    const blueLb = new elbv2.ApplicationLoadBalancer(this, 'BlueLB', {
       vpc,
       internetFacing: true,
     });
 
-    const listener = lb.addListener('HttpListener', {
+    const blueListener = blueLb.addListener('BlueHttpListener', {
+      port: 80,
+      open: true,
+    });
+
+    const greenLb = new elbv2.ApplicationLoadBalancer(this, 'GreenLB', {
+      vpc,
+      internetFacing: true,
+    });
+
+    const greenListener = greenLb.addListener('GreenHttpListener', {
       port: 80,
       open: true,
     });
@@ -96,23 +106,18 @@ export class EcsBlueGreenStack extends Stack {
     const blueTG = new elbv2.ApplicationTargetGroup(this, 'BlueTG', targetGroup);
     const greenTG = new elbv2.ApplicationTargetGroup(this, 'GreenTG', targetGroup);
 
-    listener.addTargetGroups('DefaultRule', {
+    blueListener.addTargetGroups('DefaultRule', {
       targetGroups: [blueTG],
     });
 
-    listener.addTargetGroups('GreenRule', {
-      priority: 10, // must be unique and > 1 (default has lowest priority)
+    greenListener.addTargetGroups('GreenRule', {
       conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/green/*']),
         elbv2.ListenerCondition.sourceIps([allowedIp]),
       ],
       targetGroups: [greenTG],
     });
 
     blueService.attachToApplicationTargetGroup(blueTG);
-
-    
-
 
     // CodeBuild Project
     const project = new codebuild.PipelineProject(this, 'GreenBuildProject', {
