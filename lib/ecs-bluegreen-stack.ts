@@ -118,6 +118,14 @@ export class EcsBlueGreenStack extends Stack {
       targetGroups: [greenTG],
     });
 
+    // Default action: deny all others
+    greenListener.addAction('DefaultDeny', {
+      action: elbv2.ListenerAction.fixedResponse(403, {
+        contentType: 'text/plain',
+        messageBody: 'Access denied',
+      }),
+    });
+
     blueService.attachToApplicationTargetGroup(blueTG);
 
     // CodeBuild Project
