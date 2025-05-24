@@ -21,7 +21,6 @@ export class EcsBlueGreenStack extends Stack {
     
     const allowedIp = this.node.tryGetContext('allowedIp') ?? '0.0.0.0/0';
     const imageTag = this.node.tryGetContext('imageTag');
-    const excludeGreen = this.node.tryGetContext('excludeGreen') === 'true';
 
     if (imageTag === undefined) {
       throw new Error('image tag required - use nginx for first deploy');
@@ -44,7 +43,7 @@ export class EcsBlueGreenStack extends Stack {
       }),
     };
 
-    // Task Definition (Blue - Nginx)
+    // Task Definition 
     const blueTaskDef = new ecs.FargateTaskDefinition(this, 'BlueTaskDef', taskDef);
     const greenTaskDef = new ecs.FargateTaskDefinition(this, 'GreenTaskDef', taskDef);    
 
@@ -66,13 +65,15 @@ export class EcsBlueGreenStack extends Stack {
       image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
     });
 
-    // Fargate Service (Blue)
-    const blueService = new ecs.FargateService(this, 'BlueService', {
+    const service = {
       cluster,
-      taskDefinition: blueTaskDef,
       desiredCount: 1,
       assignPublicIp: true,
-    });
+    };
+
+    // Fargate Service
+    const blueService = new ecs.FargateService(this, 'BlueService', { ...service, taskDefinition: blueTaskDef });
+    const greenService = new ecs.FargateService(this, 'GreenService', { ...service, taskDefinition: greenTaskDef });
 
     const lb = {
       vpc,
@@ -125,6 +126,7 @@ export class EcsBlueGreenStack extends Stack {
     });
 
     blueService.attachToApplicationTargetGroup(blueTG);
+    greenService.attachToApplicationTargetGroup(greenTG);
 
     // CodeBuild Project
     const project = new codebuild.PipelineProject(this, 'GreenBuildProject', {
@@ -202,29 +204,15 @@ export class EcsBlueGreenStack extends Stack {
       ],
     });
 
-    // if green service changes after initial deployment, it must be deleted with excludeGreen then recreated
-    // Invalid request provided: Unable to update load balancers on services with a CODE_DEPLOY deployment controller. Use AWS CodeDeploy to trigger a new deployment.
-    if (!excludeGreen) {
-      const greenService = new ecs.FargateService(this, 'GreenService', {
-        cluster,
-        taskDefinition: greenTaskDef,
-        desiredCount: 1,
-        assignPublicIp: true,
-      });
-
-      
-      greenService.attachToApplicationTargetGroup(greenTG);
-
-      pipeline.addStage({
-        stageName: 'DeployGreen',
-        actions: [
-          new codepipeline_actions.EcsDeployAction({
-            actionName: 'DeployToGreen',
-            service: greenService,
-            input: buildOutput,
-          }),
-        ],
-      });
-    }
+    pipeline.addStage({
+      stageName: 'DeployGreen',
+      actions: [
+        new codepipeline_actions.EcsDeployAction({
+          actionName: 'DeployToGreen',
+          service: greenService,
+          input: buildOutput,
+        }),
+      ],
+    });
   }
 }
