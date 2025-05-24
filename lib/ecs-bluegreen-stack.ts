@@ -1,4 +1,4 @@
-import { Stack, StackProps, Duration, CfnOutput, SecretValue } from 'aws-cdk-lib';
+import { Stack, StackProps, SecretValue } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
@@ -61,7 +61,14 @@ export class EcsBlueGreenStack extends Stack {
 
     greenTaskDef.addContainer('GreenApp', {
       image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
+      portMappings: [{ containerPort: 8080 }],
+    });
+
+    // Proxy container
+    greenTaskDef.addContainer('Proxy', {
+      image: ecs.ContainerImage.fromAsset('./proxy'),
       portMappings: [{ containerPort: 80 }],
+      essential: true,
     });
 
     // Fargate Service (Blue)
@@ -111,7 +118,7 @@ export class EcsBlueGreenStack extends Stack {
     listener.addTargetGroups('GreenRule', {
       priority: 10, // must be unique and > 1 (default has lowest priority)
       conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/green']),
+        elbv2.ListenerCondition.pathPatterns(['/green/*']),
         elbv2.ListenerCondition.sourceIps([allowedIp]),
       ],
       targetGroups: [greenTG],
