@@ -67,6 +67,7 @@ export class EcsBlueGreenStack extends Stack {
       desiredCount: 1,
       assignPublicIp: true,
       taskDefinition: blueTaskDef,
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       deploymentController: {
         type: ecs.DeploymentControllerType.CODE_DEPLOY,
       },
