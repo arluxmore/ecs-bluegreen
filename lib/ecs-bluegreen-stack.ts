@@ -245,6 +245,7 @@ export class EcsBlueGreenStack extends Stack {
                 '{',
                 '  "family": "$TASK_FAMILY",',
                 '  "networkMode": "awsvpc",',
+                '  "requiresCompatibilities": ["FARGATE"],',
                 '  "executionRoleArn": "$EXECUTION_ROLE_ARN",',
                 '  "containerDefinitions": [',
                 '    {',
