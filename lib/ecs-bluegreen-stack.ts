@@ -179,16 +179,18 @@ export class EcsBlueGreenStack extends Stack {
           },
           post_build: {
             commands: [
-                      'echo "Generating imagedefinitions.json..."',
-                      `cat > imagedefinitions.json <<EOF
-            [
-              {
-                "name": "App",
-                "imageUri": "$REPOSITORY_URI:$IMAGE_TAG"
-              }
-            ]
-            EOF`,
-                    ],
+              'echo "Generating imagedefinitions.json..."',
+              [
+                'cat > imagedefinitions.json <<EOF',
+                '[',
+                '  {',
+                '    "name": "App",',
+                '    "imageUri": "$REPOSITORY_URI:$IMAGE_TAG"',
+                '  }',
+                ']',
+                'EOF'
+              ].join('\n'),
+            ],
           },
         },
         artifacts: {
@@ -227,41 +229,45 @@ export class EcsBlueGreenStack extends Stack {
           post_build: {
             commands: [
               'echo Writing taskdef.json...',
-              `cat > taskdef.json <<EOF
-          {
-            "family": "$TASK_FAMILY",
-            "containerDefinitions": [
-              {
-                "name": "web",
-                "image": "$REPOSITORY_URI:$IMAGE_TAG",
-                "memory": $MEMORY,
-                "cpu": $CPU,
-                "essential": true,
-                "portMappings": [
-                  {
-                    "containerPort": $PORT,
-                    "protocol": "tcp"
-                  }
-                ]
-              }
-            ]
-          }
-          EOF`,
+              [
+                'cat > taskdef.json <<EOF',
+                '{',
+                '  "family": "$TASK_FAMILY",',
+                '  "containerDefinitions": [',
+                '    {',
+                '      "name": "web",',
+                '      "image": "$REPOSITORY_URI:$IMAGE_TAG",',
+                '      "memory": $MEMORY,',
+                '      "cpu": $CPU,',
+                '      "essential": true,',
+                '      "portMappings": [',
+                '        {',
+                '          "containerPort": $PORT,',
+                '          "protocol": "tcp"',
+                '        }',
+                '      ]',
+                '    }',
+                '  ]',
+                '}',
+                'EOF',
+              ].join('\n'),
+
               'echo Writing appspec.yaml...',
-              `cat > appspec.yaml <<EOF
-          version: 1
-          Resources:
-            - TargetService:
-                Type: AWS::ECS::Service
-                Properties:
-                  TaskDefinition: "taskdef.json"
-                  LoadBalancerInfo:
-                    ContainerName: "web"
-                    ContainerPort: $PORT
-          EOF`,
+              [
+                'cat > appspec.yaml <<EOF',
+                'version: 1',
+                'Resources:',
+                '  - TargetService:',
+                '      Type: AWS::ECS::Service',
+                '      Properties:',
+                '        TaskDefinition: "taskdef.json"',
+                '        LoadBalancerInfo:',
+                '          ContainerName: "web"',
+                '          ContainerPort: $PORT',
+                'EOF',
+              ].join('\n'),
             ],
           }
-
         },
         artifacts: {
           files: ['taskdef.json', 'appspec.yaml'],
