@@ -13,6 +13,10 @@ import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
 const repositoryName = 'sample-container-app';
 const gitHubOwner = 'arluxmore';
 
+const cpu = 256;
+const memory = 512;
+const containerPort = 80;
+
 export class EcsBlueGreenStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
@@ -31,8 +35,8 @@ export class EcsBlueGreenStack extends Stack {
     });
 
     const taskDef = {
-      cpu: 256,
-      memoryLimitMiB: 512,
+      cpu,
+      memoryLimitMiB: memory,
       executionRole: new iam.Role(this, 'FargateExecutionRole', {
         assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
         managedPolicies: [
@@ -46,13 +50,13 @@ export class EcsBlueGreenStack extends Stack {
     const greenTaskDef = new ecs.FargateTaskDefinition(this, 'GreenTaskDef', taskDef);    
 
     blueTaskDef.addContainer('BlueApp', {
-      portMappings: [{ containerPort: 80 }],
+      portMappings: [{ containerPort }],
       image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
     });
 
     greenTaskDef.addContainer('GreenApp', {
       containerName: 'App',
-      portMappings: [{ containerPort: 80 }],
+      portMappings: [{ containerPort }],
       image: ecs.ContainerImage.fromRegistry('nginx:alpine'),
     });
 
@@ -96,7 +100,7 @@ export class EcsBlueGreenStack extends Stack {
     // Target Groups
     const targetGroup = {
       vpc,
-      port: 80,
+      port: containerPort,
       targetType: elbv2.TargetType.IP,
       protocol: elbv2.ApplicationProtocol.HTTP,
       healthCheck: { path: '/' },
@@ -179,7 +183,7 @@ export class EcsBlueGreenStack extends Stack {
                       `cat > imagedefinitions.json <<EOF
             [
               {
-                "name": "web",
+                "name": "App",
                 "imageUri": "$REPOSITORY_URI:$IMAGE_TAG"
               }
             ]
@@ -201,6 +205,9 @@ export class EcsBlueGreenStack extends Stack {
       environmentVariables: {
         TASK_FAMILY: { value: blueTaskDef.family },
         REPOSITORY_URI: { value: repo.repositoryUri },
+        MEMORY: { value: memory },
+        CPU: { value: cpu },
+        PORT: { value: containerPort }
       },
       buildSpec: codebuild.BuildSpec.fromObject({
         version: '0.2',
@@ -227,12 +234,12 @@ export class EcsBlueGreenStack extends Stack {
               {
                 "name": "web",
                 "image": "$REPOSITORY_URI:$IMAGE_TAG",
-                "memory": 512,
-                "cpu": 256,
+                "memory": $MEMORY,
+                "cpu": $CPU,
                 "essential": true,
                 "portMappings": [
                   {
-                    "containerPort": 80,
+                    "containerPort": $PORT,
                     "protocol": "tcp"
                   }
                 ]
@@ -250,7 +257,7 @@ export class EcsBlueGreenStack extends Stack {
                   TaskDefinition: "taskdef.json"
                   LoadBalancerInfo:
                     ContainerName: "web"
-                    ContainerPort: 80
+                    ContainerPort: $PORT
           EOF`,
             ],
           }
