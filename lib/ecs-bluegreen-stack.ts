@@ -235,6 +235,7 @@ export class EcsBlueGreenStack extends Stack {
                 'cat > taskdef.json <<EOF',
                 '{',
                 '  "family": "$TASK_FAMILY",',
+                '  "networkMode": "awsvpc",',
                 '  "containerDefinitions": [',
                 '    {',
                 '      "name": "web",',
