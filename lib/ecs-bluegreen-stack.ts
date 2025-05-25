@@ -16,6 +16,9 @@ const gitHubOwner = 'arluxmore';
 export class EcsBlueGreenStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+
+    const region = Stack.of(this).region;
+    const account = Stack.of(this).account;
     
     const allowedIp = this.node.tryGetContext('allowedIp') ?? '0.0.0.0/0';
 
@@ -159,7 +162,7 @@ export class EcsBlueGreenStack extends Stack {
             commands: [
               'echo Logging in to Amazon ECR...',
               'aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI',
-              'export IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:0:7}',
+              'export IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-7)',
               'echo "Image tag used: $IMAGE_TAG"',
             ],
           },
@@ -277,7 +280,7 @@ export class EcsBlueGreenStack extends Stack {
 
     blueBuildProject.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:GetParameter'],
-      resources: ['arn:aws:ssm:your-region:your-account:parameter/promote/imageTag'],
+      resources: [`arn:aws:ssm:${region}:${account}:parameter/promote/imageTag`],
     }));
 
 
