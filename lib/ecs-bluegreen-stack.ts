@@ -374,8 +374,8 @@ export class EcsBlueGreenStack extends Stack {
         new codepipeline_actions.CodeDeployEcsDeployAction({
           actionName: 'DeployToBlue',
           deploymentGroup: blueDeploymentGroup,
-          taskDefinitionTemplateInput: blueBuildOutput,
-          appSpecTemplateInput: blueBuildOutput,
+          taskDefinitionTemplateFile: blueBuildOutput.atPath('taskdef.json'),
+          appSpecTemplateFile: blueBuildOutput.atPath('appspec.yaml'),
         }),
       ],
     });
