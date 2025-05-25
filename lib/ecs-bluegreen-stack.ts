@@ -176,35 +176,38 @@ export class EcsBlueGreenStack extends Stack {
           post_build: {
             commands: [
               'echo Writing taskdef.json...',
-              `cat > taskdef.json <<EOF \\
-              { \\
-                "family": "$TASK_FAMILY", \\
-                "containerDefinitions": [ \\
-                  { \\
-                    "name": "web", \\
-                    "image": "' + '$REPOSITORY_URI:$IMAGE_TAG' + '", \\
-                    "memory": 512, \\
-                    "cpu": 256, \\
-                    "essential": true, \\
-                    "portMappings": [ \\
-                      { "containerPort": 80, "protocol": "tcp" } \\
-                    ] \\
-                  } \\
-                ] \\
-              } \\
-              EOF`,
+              `cat > taskdef.json <<EOF
+          {
+            "family": "$TASK_FAMILY",
+            "containerDefinitions": [
+              {
+                "name": "web",
+                "image": "$REPOSITORY_URI:$IMAGE_TAG",
+                "memory": 512,
+                "cpu": 256,
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": 80,
+                    "protocol": "tcp"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF`,
               'echo Writing appspec.yaml...',
-              `cat > appspec.yaml <<EOF \\
-              version: 1 \\
-              Resources: \\
-                - TargetService: \\
-                    Type: AWS::ECS::Service \\
-                    Properties: \\
-                      TaskDefinition: "taskdef.json" \\
-                      LoadBalancerInfo: \\
-                        ContainerName: "web" \\
-                        ContainerPort: 80 \\
-              EOF`,
+              `cat > appspec.yaml <<EOF
+          version: 1
+          Resources:
+            - TargetService:
+                Type: AWS::ECS::Service
+                Properties:
+                  TaskDefinition: "taskdef.json"
+                  LoadBalancerInfo:
+                    ContainerName: "web"
+                    ContainerPort: 80
+          EOF`,
             ],
           },
         },
@@ -241,37 +244,41 @@ export class EcsBlueGreenStack extends Stack {
           post_build: {
             commands: [
               'echo Writing taskdef.json...',
-              `cat > taskdef.json <<EOF \\
-              { \\
-                "family": "$TASK_FAMILY", \\
-                "containerDefinitions": [ \\
-                  { \\
-                    "name": "web", \\
-                    "image": "' + '$REPOSITORY_URI:$IMAGE_TAG' + '", \\
-                    "memory": 512, \\
-                    "cpu": 256, \\
-                    "essential": true, \\
-                    "portMappings": [ \\
-                      { "containerPort": 80, "protocol": "tcp" } \\
-                    ] \\
-                  } \\
-                ] \\
-              } \\
-              EOF`,
+              `cat > taskdef.json <<EOF
+          {
+            "family": "$TASK_FAMILY",
+            "containerDefinitions": [
+              {
+                "name": "web",
+                "image": "$REPOSITORY_URI:$IMAGE_TAG",
+                "memory": 512,
+                "cpu": 256,
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": 80,
+                    "protocol": "tcp"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF`,
               'echo Writing appspec.yaml...',
-              `cat > appspec.yaml <<EOF \\
-              version: 1 \\
-              Resources: \\
-                - TargetService: \\
-                    Type: AWS::ECS::Service \\
-                    Properties: \\
-                      TaskDefinition: "taskdef.json" \\
-                      LoadBalancerInfo: \\
-                        ContainerName: "web" \\
-                        ContainerPort: 80 \\
-              EOF`,
+              `cat > appspec.yaml <<EOF
+          version: 1
+          Resources:
+            - TargetService:
+                Type: AWS::ECS::Service
+                Properties:
+                  TaskDefinition: "taskdef.json"
+                  LoadBalancerInfo:
+                    ContainerName: "web"
+                    ContainerPort: 80
+          EOF`,
             ],
-          },
+          }
+
         },
         artifacts: {
           files: ['taskdef.json', 'appspec.yaml'],
