@@ -199,6 +199,13 @@ export class EcsBlueGreenStack extends Stack {
       }),
     });
 
+    const taskExecutionRole = new iam.Role(this, 'TaskExecutionRole', {
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
+      ],
+    });
+
     const blueBuildProject = new codebuild.PipelineProject(this, 'BlueBuildProject', {
       environment: {
         buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
@@ -209,7 +216,8 @@ export class EcsBlueGreenStack extends Stack {
         REPOSITORY_URI: { value: repo.repositoryUri },
         MEMORY: { value: memory },
         CPU: { value: cpu },
-        PORT: { value: containerPort }
+        PORT: { value: containerPort },
+        EXECUTION_ROLE_ARN: { value: taskExecutionRole.roleArn },
       },
       buildSpec: codebuild.BuildSpec.fromObject({
         version: '0.2',
@@ -236,6 +244,7 @@ export class EcsBlueGreenStack extends Stack {
                 '{',
                 '  "family": "$TASK_FAMILY",',
                 '  "networkMode": "awsvpc",',
+                '  "executionRoleArn": "$EXECUTION_ROLE_ARN",',
                 '  "containerDefinitions": [',
                 '    {',
                 '      "name": "web",',
