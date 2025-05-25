@@ -89,7 +89,7 @@ export class EcsBlueGreenStack extends Stack {
     const greenLb = new elbv2.ApplicationLoadBalancer(this, 'GreenLB', lb);
 
     const listener = {
-      port: 80,
+      port: containerPort,
       open: true,
     };
 
