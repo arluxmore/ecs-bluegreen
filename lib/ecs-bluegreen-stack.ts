@@ -216,6 +216,8 @@ export class EcsBlueGreenStack extends Stack {
         phases: {
           pre_build: {
             commands: [
+              'echo Logging in to Amazon ECR...',
+              'aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI',
               'IMAGE_TAG=$(aws ssm get-parameter --name /promote/imageTag --query Parameter.Value --output text)',
               'echo Promoting image $IMAGE_TAG',
             ],
@@ -348,6 +350,7 @@ export class EcsBlueGreenStack extends Stack {
           repo: repositoryName,
           branch: 'main',
           output: blueSourceOutput,
+          trigger: codepipeline_actions.GitHubTrigger.NONE, 
         }),
       ],
     });
