@@ -262,7 +262,7 @@ export class EcsBlueGreenStack extends Stack {
                 '  - TargetService:',
                 '      Type: AWS::ECS::Service',
                 '      Properties:',
-                '        TaskDefinition: "taskdef.json"',
+                '        TaskDefinition: <TASK_DEFINITION>',
                 '        LoadBalancerInfo:',
                 '          ContainerName: "web"',
                 '          ContainerPort: $PORT',
