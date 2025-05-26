@@ -13,6 +13,25 @@ This AWS CDK stack defines a **Blue/Green deployment system** for a containerize
 * ♻️ **Isolated Environments**: Separate ECS services, target groups, task definitions, and pipelines for blue and green.
 * 📦 **Containerized Deployment**: Built with Docker, stored in ECR, and deployed via ECS Fargate.
 
+## Architecture Overview
+
+This project implements a blue/green ECS deployment strategy with two isolated environments:
+
+- **Staging (Green)** is auto-deployed from GitHub on each push and locked behind an IP allow list.
+- **Production (Blue)** is promoted via manual CLI trigger after validation, reading the image tag from SSM Parameter Store.
+
+![Architecture Diagram](./ecs-bluegreen.drawio.png)
+
+## Screenshot: Staging (Green) Pipeline Execution
+
+The GreenDeployPipeline automatically builds and pushes a new image to ECR using a short SHA tag for traceability. Below, you can see:
+
+- Secure login to Amazon ECR
+- Generation of the SHA-based image tag
+- Success message confirming the build phase
+
+![Green Pipeline Execution](./green-pipeline-execution.png)
+
 ## Deployment Prerequisites
 
 * AWS CDK v2 installed
