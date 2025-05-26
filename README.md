@@ -32,6 +32,16 @@ The GreenDeployPipeline automatically builds and pushes a new image to ECR using
 
 ![Green Pipeline Execution](./green-pipeline-execution.png)
 
+## Screenshot: Blue (Production) Promotion via CodeDeploy
+
+Once a tagged image is validated in staging, it is manually promoted using a separate pipeline. Below is an example of a successful **blue/green deployment** using AWS CodeDeploy, where:
+
+- A new task set was launched.
+- 100% of traffic was shifted to the new version.
+- The previous version was safely terminated.
+
+![CodeDeploy Blue/Green Promotion](./blue-green.png)
+
 ## Deployment Prerequisites
 
 * AWS CDK v2 installed
